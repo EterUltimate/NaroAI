@@ -2,6 +2,7 @@ package com.naroai.app
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager
+import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -30,7 +31,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 检查地区，如果是中国大陆，直接拦截显示错误或退出
+        // 检查地区
         if (isMainlandChina()) {
             Toast.makeText(this, "The application is only available outside Mainland China.", Toast.LENGTH_LONG).show()
             finish()
@@ -39,15 +40,17 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
+        // 允许在 PC 端的 Chrome 浏览器中调试 (chrome://inspect)
+        // 开启此项后，你可以查看 IndexedDB 内部是否真的存入了数据
+        WebView.setWebContentsDebuggingEnabled(true)
+
         webView = findViewById(R.id.webview)
 
         setupWebView()
         setupDownloadListener()
 
-        // 加载目标网页
         webView.loadUrl("https://www.naroai.top/character-cards")
 
-        // 处理返回键
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
@@ -60,46 +63,43 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    /**
-     * 通过系统语言和地区设置检查是否为中国大陆
-     */
     private fun isMainlandChina(): Boolean {
         val locale = Locale.getDefault()
-        val country = locale.country
-        val language = locale.language
-        
-        return country.equals("CN", ignoreCase = true) || 
-               (language.equals("zh", ignoreCase = true) && country.equals("CN", ignoreCase = true))
+        return locale.country.equals("CN", ignoreCase = true) || 
+               (locale.language.equals("zh", ignoreCase = true) && locale.country.equals("CN", ignoreCase = true))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
+            // --- 核心：确保 IndexedDB 和 API 正常工作 ---
             javaScriptEnabled = true
-            domStorageEnabled = true
-            databaseEnabled = true
+            domStorageEnabled = true    // 必须：用于 localStorage 和 IndexedDB
+            databaseEnabled = true      // 必须：在 Android WebView 中 IndexedDB 依赖此项开启底层存储支持
             
-            // 优化性能：开启离屏预渲染，减少多重嵌套 iframe 的滚动卡顿
-            offscreenPreRaster = true
+            // 优化：允许混合内容加载（防止 HTTPS 页面中的 API 请求因证书或同源策略被截断）
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             
-            cacheMode = WebSettings.LOAD_DEFAULT
+            // 优化：跨域访问权限（针对嵌套 Iframe 之间的 IndexDB 互操作）
             allowFileAccess = true
             allowContentAccess = true
             
+            // --- 性能与适配 ---
+            offscreenPreRaster = true 
+            cacheMode = WebSettings.LOAD_DEFAULT
             loadWithOverviewMode = true
             useWideViewPort = true
             javaScriptCanOpenWindowsAutomatically = true
             mediaPlaybackRequiresUserGesture = false
             
-            // 支持混合内容（HTTP/HTTPS），嵌套 iframe 经常需要此设置
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            
-            // 开启多窗口支持，配合 onCreateWindow 处理 iframe 内部跳转
+            // 必须：支持多窗口，确保 Iframe 内的 JS 逻辑闭环
             setSupportMultipleWindows(true)
             
+            // 设置标准 User Agent
             userAgentString = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         }
 
+        // 必须：第三方 Cookie 支持，许多 API 依赖 Cookie 进行会话恢复
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
         cookieManager.setAcceptThirdPartyCookies(webView, true)
@@ -111,36 +111,26 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                CookieManager.getInstance().flush()
+                CookieManager.getInstance().flush() // 强制将状态写入磁盘
             }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            // 关键：处理多重嵌套 iframe 尝试打开新窗口的情况，强制在当前 WebView 加载以保持会话
-            override fun onCreateWindow(
-                view: WebView?,
-                isDialog: Boolean,
-                isUserGesture: Boolean,
-                resultMsg: Message?
-            ): Boolean {
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
                 val transport = resultMsg?.obj as? WebViewTransport
                 transport?.webView = view
                 resultMsg?.sendToTarget()
                 return true
             }
 
-            override fun onShowFileChooser(
-                webView: WebView?,
-                filePathCallback: ValueCallback<Array<Uri>>?,
-                fileChooserParams: FileChooserParams?
-            ): Boolean {
+            override fun onShowFileChooser(webView: WebView?, filePathCallback: ValueCallback<Array<Uri>>?, params: FileChooserParams?): Boolean {
                 this@MainActivity.filePathCallback = filePathCallback
                 filePickerLauncher.launch("*/*")
                 return true
             }
         }
         
-        // 确保开启硬件加速以提升多层渲染性能
+        // 开启硬件加速以确保 JS 执行性能
         webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null)
     }
 
