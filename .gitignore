@@ -1,0 +1,19 @@
+# Folders
+.gradle/
+.idea/
+build/
+captures/
+.kotlin/
+
+# Files
+*.iml
+*.hprof
+*.log
+local.properties
+
+# Mac
+.DS_Store
+
+# Native
+.cxx/
+.externalNativeBuild/
