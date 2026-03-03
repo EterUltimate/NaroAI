@@ -2,7 +2,6 @@ package com.naroai.app
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager
-import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -14,7 +13,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
-import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -31,17 +29,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 检查地区
-        if (isMainlandChina()) {
-            Toast.makeText(this, "The application is only available outside Mainland China.", Toast.LENGTH_LONG).show()
-            finish()
-            return
-        }
-
         setContentView(R.layout.activity_main)
 
         // 允许在 PC 端的 Chrome 浏览器中调试 (chrome://inspect)
-        // 开启此项后，你可以查看 IndexedDB 内部是否真的存入了数据
         WebView.setWebContentsDebuggingEnabled(true)
 
         webView = findViewById(R.id.webview)
@@ -51,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
         webView.loadUrl("https://www.naroai.top/character-cards")
 
+        // 处理返回键
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) {
@@ -61,12 +52,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
-    }
-
-    private fun isMainlandChina(): Boolean {
-        val locale = Locale.getDefault()
-        return locale.country.equals("CN", ignoreCase = true) || 
-               (locale.language.equals("zh", ignoreCase = true) && locale.country.equals("CN", ignoreCase = true))
     }
 
     @SuppressLint("SetJavaScriptEnabled")
