@@ -1,7 +1,9 @@
 <resources>
     <style name="Theme.NaroAI" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- 透明状态栏和导航栏 -->
+        <!-- 基础全屏配置 -->
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>
+        <!-- 仅在 API 28+ (Android 9.0) 及以上版本启用刘海屏适配 -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>
